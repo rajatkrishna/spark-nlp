@@ -19,12 +19,14 @@ package com.johnsnowlabs.ml.ai
 import ai.onnxruntime.OnnxTensor
 import com.johnsnowlabs.ml.ai.util.PrepareEmbeddings
 import com.johnsnowlabs.ml.onnx.OnnxWrapper
+import com.johnsnowlabs.ml.openvino.OpenvinoWrapper
 import com.johnsnowlabs.ml.tensorflow.sentencepiece.{SentencePieceWrapper, SentencepieceEncoder}
 import com.johnsnowlabs.ml.tensorflow.sign.{ModelSignatureConstants, ModelSignatureManager}
 import com.johnsnowlabs.ml.tensorflow.{TensorResources, TensorflowWrapper}
-import com.johnsnowlabs.ml.util.{ModelArch, ONNX, TensorFlow}
+import com.johnsnowlabs.ml.util.{ModelArch, ONNX, Openvino, TensorFlow}
 import com.johnsnowlabs.nlp.annotators.common._
 import com.johnsnowlabs.nlp.{Annotation, AnnotatorType}
+import org.intel.openvino.Tensor
 
 import scala.collection.JavaConverters._
 
@@ -75,6 +77,7 @@ import scala.collection.JavaConverters._
 private[johnsnowlabs] class XlmRoberta(
     val tensorflowWrapper: Option[TensorflowWrapper],
     val onnxWrapper: Option[OnnxWrapper],
+    val openvinoWrapper: Option[OpenvinoWrapper],
     val spp: SentencePieceWrapper,
     caseSensitive: Boolean = true,
     configProtoBytes: Option[Array[Byte]] = None,
@@ -143,6 +146,34 @@ private[johnsnowlabs] class XlmRoberta(
 
           } finally if (results != null) results.close()
         }
+
+      case Openvino.name =>
+        val shape = Array(batchLength, maxSentenceLength)
+        val tokenTensors = new Tensor(shape, batch.flatMap(_.toSeq).toArray)
+        val maskTensors = new Tensor(
+          shape,
+          batch
+            .flatMap(sentence => sentence.map(x => if (x == SentencePadTokenId) 0 else 1))
+            .toArray)
+
+        val inferRequest = openvinoWrapper.get.getCompiledModel().create_infer_request()
+        inferRequest.set_tensor(
+          _tfRoBertaSignatures.getOrElse(
+            ModelSignatureConstants.InputIds.key,
+            "missing_input_id_key"),
+          tokenTensors)
+        inferRequest.set_tensor(
+          _tfRoBertaSignatures
+            .getOrElse(ModelSignatureConstants.AttentionMask.key, "missing_input_mask_key"),
+          maskTensors)
+
+        inferRequest.infer()
+
+        val result = inferRequest.get_tensor(_tfRoBertaSignatures
+          .getOrElse(ModelSignatureConstants.LastHiddenState.key, "missing_sequence_output_key"))
+        val embeddings = result.data()
+
+        embeddings
       case _ =>
         val tensors = new TensorResources()
 
