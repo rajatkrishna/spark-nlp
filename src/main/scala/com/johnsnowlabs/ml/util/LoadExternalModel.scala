@@ -51,6 +51,13 @@ object LoadExternalModel {
        |├── decoder_model.onnx
        |├── decoder_with_past_model.onnx (not used in this release)
        |
+       |A typical imported OpenVINO model has the following structure:
+       |
+       |├── assets/
+       |    ├── your-assets-are-here (vocab, sp model, labels, etc.)
+       |├── saved_model.xml
+       |├── saved_model.bin
+       |
        |Please make sure you follow provided notebooks to import external models into Spark NLP:
        |https://github.com/JohnSnowLabs/spark-nlp/discussions/5669""".stripMargin
   }
@@ -74,6 +81,12 @@ object LoadExternalModel {
 
   }
 
+  def isOpenvinoModel(modelPath: String): Boolean = {
+    val modelXml = new File(modelPath, Openvino.modelXml)
+    val modelBin = new File(modelPath, Openvino.modelBin)
+    modelXml.exists() && modelBin.exists()
+  }
+
   def detectEngine(modelPath: String, isEncoderDecoder: Boolean = false): String = {
 
     /** Check if the path is correct */
@@ -93,12 +106,17 @@ object LoadExternalModel {
     /*ONNX required model's name*/
     val onnxModelExist = isOnnxModel(modelPath, isEncoderDecoder)
 
+    /*Openvino required model files*/
+    val openvinoModelExist = isOpenvinoModel(modelPath)
+
     if (tfSavedModelExist) {
       TensorFlow.name
     } else if (onnxModelExist) {
       ONNX.name
+    } else if (openvinoModelExist) {
+      Openvino.name
     } else {
-      require(tfSavedModelExist || onnxModelExist, notSupportedEngineError)
+      require(tfSavedModelExist || onnxModelExist || openvinoModelExist, notSupportedEngineError)
       Unknown.name
     }
 
