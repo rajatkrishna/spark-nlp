@@ -59,6 +59,7 @@ private[johnsnowlabs] class RoBerta(
   val detectedEngine: String =
     if (tensorflowWrapper.isDefined) TensorFlow.name
     else if (onnxWrapper.isDefined) ONNX.name
+    else if (openvinoWrapper.isDefined) Openvino.name
     else TensorFlow.name
 
   private def sessionWarmup(): Unit = {
@@ -112,10 +113,10 @@ private[johnsnowlabs] class RoBerta(
         }
       case Openvino.name =>
         val shape = Array(batchLength, maxSentenceLength)
-        val tokenTensors = new Tensor(shape, batch.flatMap(_.toSeq).toArray)
+        val tokenTensors = new Tensor(shape, batch.flatMap(x => x.map(x => x.toLong)).toArray)
         val maskTensors = new Tensor(
           shape,
-          batch.flatMap(sentence => sentence.map(x => if (x == padTokenId) 0 else 1)).toArray)
+          batch.flatMap(sentence => sentence.map(x => if (x == padTokenId) 0L else 1L)).toArray)
 
         val inferRequest = openvinoWrapper.get.getCompiledModel().create_infer_request()
         inferRequest.set_tensor(

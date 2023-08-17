@@ -548,6 +548,7 @@ trait ReadRobertaDLModel extends ReadTensorflowModel with ReadOnnxModel with Rea
             OpenvinoWrapper.convertToOpenvinoFormat(
               modelPath = localModelPath,
               targetPath = tmpFolder,
+              detectedEngine = detectedEngine,
               zipped = false,
               useBundle = true)
             tmpFolder
