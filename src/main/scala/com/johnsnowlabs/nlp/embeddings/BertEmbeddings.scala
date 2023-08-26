@@ -497,8 +497,7 @@ trait ReadBertDLModel extends ReadTensorflowModel with ReadOnnxModel with ReadOp
               modelPath = localModelPath,
               targetPath = tmpFolder,
               detectedEngine = detectedEngine,
-              zipped = false,
-              useBundle = true)
+              zipped = false)
             tmpFolder
           }
         val (ovWrapper: OpenvinoWrapper, tensorNames: Map[String, String]) =
